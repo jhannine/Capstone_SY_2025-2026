@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '@/constants/api';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
 import { saveSession } from './utils/authStorage'; // i-adjust ang path base sa lokasyon ng authStorage.ts sa project mo
 
 export default function LoginScreen() {
@@ -80,6 +82,11 @@ export default function LoginScreen() {
         // anywhere else, always go through saveSession()/clearSession()
         // in authStorage.ts, or screens will fall out of sync again.
         await saveSession(result.user);
+
+        // Save the logged-in user's data so other screens (e.g. Profile)
+        // can read it later without hitting the API again.
+        await AsyncStorage.setItem('user', JSON.stringify(result.user));
+
         startLoginLoading();
       } else {
         setError(
@@ -443,6 +450,120 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
+    marginBottom: 28,
+  },
+
+    flexDirection: 'row',
+  },
+
+  optionText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#555',
+
+    color: '#1E7B52',
+  },
+
+    height: 55,
+    justifyContent: 'center',
+      height: 4,
+    },
+
+    elevation: 5,
+
+  btnDisabled: {
+  },
+
+  loginText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  signupRow: {
+    flexDirection: 'row',
+    marginTop: 28,
+  },
+
+  signupText: {
+    color: '#666',
+  },
+
+  signupLink: {
+    marginLeft: 5,
+    color: '#1E7B52',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  /* Loading */
+
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  loadingCard: {
+    width: '100%',
+    maxWidth: 330,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+
+  loadingTitle: {
+    marginTop: 14,
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#222',
+  },
+
+  loadingSubtitle: {
+    marginTop: 5,
+    fontSize: 13,
+    color: '#777',
+    width: '100%',
+    height: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
+
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#1E7B52',
+});  },
+    borderRadius: 999,
+    marginTop: 20,
+  },
+    backgroundColor: '#E8F4EC',
+  },
+
+  progressTrack: {
+    fontSize: 14,
+    justifyContent: 'center',
+    opacity: 0.7,
+  },
+      width: 0,
+    shadowOffset: {
+    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowColor: '#000',
+
+    alignItems: 'center',
+    backgroundColor: '#1E7B52',
+    borderRadius: 30,
+  loginButton: {
+    fontWeight: '600',
+    fontSize: 13,
+  forgotText: {
+  },
+  alignItems: 'center',
+      
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
