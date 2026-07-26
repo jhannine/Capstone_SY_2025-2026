@@ -19,6 +19,8 @@ import {
   View,
 } from 'react-native';
 
+import { saveSession } from './utils/authStorage'; // i-adjust ang path base sa lokasyon ng authStorage.ts sa project mo
+
 export default function LoginScreen() {
   const router = useRouter();
 
@@ -73,9 +75,18 @@ export default function LoginScreen() {
       const result = await response.json();
 
       if (result.success) {
+        // Save the logged-in user's data (AND farm_id) so other screens
+        // (Profile, Monitor, Alerts, History, etc.) can read it later
+        // without hitting the API again. This is the single source of
+        // truth for the session -- do NOT write to AsyncStorage directly
+        // anywhere else, always go through saveSession()/clearSession()
+        // in authStorage.ts, or screens will fall out of sync again.
+        await saveSession(result.user);
+
         // Save the logged-in user's data so other screens (e.g. Profile)
         // can read it later without hitting the API again.
         await AsyncStorage.setItem('user', JSON.stringify(result.user));
+
         startLoginLoading();
       } else {
         setError(
@@ -435,6 +446,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 28,
+  },
+
     marginBottom: 28,
   },
 
@@ -547,7 +562,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   forgotText: {
   },
-    alignItems: 'center',
+  alignItems: 'center',
+      
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
