@@ -35,7 +35,7 @@ Collected data are displayed through a mobile application to assist seaweed farm
 
 - Environmental monitoring
 - Mobile application for data visualization
-- Cloud database storage
+- MySql
 - Notifications when environmental values exceed acceptable thresholds
 
 ### Not Included
@@ -104,7 +104,7 @@ Sensors
 
 ## Backend
 
-- PHP REST API
+- React Native
 
 ## Database
 
@@ -155,30 +155,6 @@ Will provide:
 
 - Salinity datasets
 - Ocean pH datasets
-
----
-
-# Mocked / Simulated Components
-
-For project demonstration purposes, the following components are currently simulated while hardware integration is still in progress.
-
-## pH Sensor
-
-```json
-{
-  "ph": 7.8
-}
-```
-
-## Salinity Sensor
-
-```json
-{
-  "salinity": 33.5
-}
-```
-
-These values are currently generated using a mock API.
 
 ---
 
