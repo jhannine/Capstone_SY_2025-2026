@@ -1,4 +1,4 @@
-
+import { API_BASE_URL } from '@/constants/api';
 import { API_BASE_URL } from '@/constants/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,13 +7,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-
+  ActivityIndicator,
   Alert,
   Animated,
   Modal,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -23,6 +25,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { clearSession } from '../utils/authStorage'; // i-adjust ang path base sa lokasyon ng authStorage.ts sa project mo
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -31,8 +34,8 @@ export default function ProfileScreen() {
   const [salinityAlerts, setSalinityAlerts] = useState(true);
   const [temperatureAlerts, setTemperatureAlerts] = useState(false);
   const [phSunlightAlerts, setPhSunlightAlerts] = useState(true);
-
-
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [contact, setContact] = useState('');
@@ -40,12 +43,37 @@ export default function ProfileScreen() {
   const [name, setName] = useState('Lato Farmer');
   const [email, setEmail] = useState('farmer@latomonitor.ph');
   const [contact, setContact] = useState('');
-
-
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftEmail, setDraftEmail] = useState(email);
   const [draftContact, setDraftContact] = useState(contact);
   const [editVisible, setEditVisible] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Nilabas mula sa useEffect papuntang component scope para magamit
+  // din ng pull-to-refresh handler (handleRefresh) sa baba.
+  const loadUser = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('user');
+      if (stored) {
+        const user = JSON.parse(stored);
+        setName(user.full_name ?? '');
+        setEmail(user.email ?? '');
+        setContact(user.contact_number ?? '');
+      }
+    } catch (err) {
+      console.log('LOAD PROFILE ERROR:', err);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  // Load the actual logged-in user (saved during login) instead of
+  // showing hardcoded placeholder values.
+  useEffect(() => {
+    loadUser();
+  }, []);
 
 
   // Load the actual logged-in user (saved during login) instead of
@@ -106,18 +134,22 @@ export default function ProfileScreen() {
 
   const [showTooltip, setShowTooltip] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [savingToggleKey, setSavingToggleKey] = useState<string | null>(null);
 
   const toastAnim = useRef(new Animated.Value(-80)).current;
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('Profile saved successfully!');
 
-  const initials = (n: string) =>
-    n
-      .trim()
+  const initials = (n: string) => {
+    const trimmed = n.trim();
+    if (!trimmed) return '?';
+    return trimmed
       .split(/\s+/)
       .map((w) => w[0])
       .join('')
       .substring(0, 2)
       .toUpperCase();
+  };
 
 
   const openEdit = () => {
@@ -126,6 +158,15 @@ export default function ProfileScreen() {
     setDraftContact(contact);
     setEditVisible(true);
   };
+
+
+  const closeEdit = () => {
+    if (savingProfile) return;
+    setEditVisible(false);
+  };
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
 
 
   const closeEdit = () => {
@@ -141,6 +182,7 @@ export default function ProfileScreen() {
   const closeEdit = () => setEditVisible(false);
 
   const showToast = () => {
+
 
     setToastVisible(true);
     Animated.spring(toastAnim, {
@@ -163,7 +205,11 @@ export default function ProfileScreen() {
 
   const saveProfile = async () => {
 
+
+  const saveProfile = async () => {
+
   const saveProfile = () => {
+
     const trimmedName = draftName.trim();
     const trimmedEmail = draftEmail.trim();
 
@@ -185,7 +231,11 @@ export default function ProfileScreen() {
         return;
       }
 
+
+      // NOTE: backend is Flask (api_server.py), not PHP -- no ".php" suffix here.
+
       // NOTE: backend is Flask (api_server.py), not PHP — no ".php" suffix here.
+
       const response = await fetch(`${API_BASE_URL}/update_profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,6 +250,20 @@ export default function ProfileScreen() {
       const result = await response.json();
 
       if (!result.success) {
+
+        Alert.alert('Save Failed', result.message || 'Unable to save profile right now.');
+        return;
+      }
+
+      // Use the row the server sent back (source of truth), not just what we typed.
+      setName(result.user.full_name ?? trimmedName);
+      setEmail(result.user.email ?? trimmedEmail);
+      setContact(result.user.contact_number ?? trimmedContact);
+
+      // Keep AsyncStorage in sync so the edited values persist
+      // even after closing/reopening the app. NOTE: this does NOT touch
+      // farm_id, so it's safe to keep using AsyncStorage directly here --
+      // update_profile never changes which farm the user belongs to.
 
         Alert.alert('Save Failed', result.message || 'Unable to save profile right now.');
         return;
@@ -228,10 +292,19 @@ export default function ProfileScreen() {
       showToast('Profile saved successfully!');
     } catch (err) {
 
+
+      setEditVisible(false);
+      showToast('Profile saved successfully!');
+    } catch (err) {
+
+
       console.log('SAVE PROFILE ERROR:', err);
       Alert.alert('Save Failed', 'Unable to connect to the server. Please check your connection.');
     } finally {
       setSavingProfile(false);
+
+
+
 
     }
   };
@@ -242,6 +315,13 @@ export default function ProfileScreen() {
     setSavingToggleKey(key);
     try {
       update();
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      showToast('Notification setting updated.');
+    } finally {
+      setSavingToggleKey(null);
+    }
+
 
       await new Promise((resolve) => setTimeout(resolve, 500));
       showToast('Notification setting updated.');
@@ -312,9 +392,26 @@ export default function ProfileScreen() {
 
   const handleLogout = () => setLogoutVisible(true);
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setLogoutVisible(false);
+    // Dati AsyncStorage.removeItem('user') lang -- naiiwan ang
+    // 'lato_farm_id' sa storage, kaya kapag may susunod na mag-login
+    // na hindi nakakumpleto ng saveSession(), pwedeng ma-stuck pa rin
+    // sa farm_id ng dating user. clearSession() ang tumatanggal sa
+    // 'user' AT 'lato_farm_id' nang sabay -- laging malinis simula.
+    await clearSession();
     router.replace('/login');
+  };
+
+  // Pull-to-refresh handler -- kinukuha ulit ang saved user profile mula
+  // sa AsyncStorage, pareho ng ginamit sa monitor.tsx.
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadUser();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
@@ -324,9 +421,15 @@ export default function ProfileScreen() {
           <View style={styles.toastIcon}>
             <Ionicons name="checkmark" size={12} color="#fff" />
           </View>
-          <Text style={styles.toastText}>Profile saved successfully!</Text>
+          <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerSubtitle}>Account and Notifications</Text>
+      </View>
 
       {/* Edit Profile Modal */}
       <Modal visible={editVisible} transparent animationType="fade" onRequestClose={closeEdit}>
@@ -334,7 +437,7 @@ export default function ProfileScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.modalBox}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity style={styles.closeBtn} onPress={closeEdit}>
+              <TouchableOpacity style={styles.closeBtn} onPress={closeEdit} disabled={savingProfile}>
                 <Ionicons name="close" size={15} color="#666" />
               </TouchableOpacity>
             </View>
@@ -371,6 +474,8 @@ export default function ProfileScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 editable={!savingProfile}
+
+
 
               />
             </View>
@@ -453,15 +558,28 @@ export default function ProfileScreen() {
                 value={draftContact}
                 onChangeText={setDraftContact}
                 keyboardType="phone-pad"
+                editable={!savingProfile}
               />
             </View>
 
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.btnCancel} onPress={closeEdit}>
+              <TouchableOpacity style={styles.btnCancel} onPress={closeEdit} disabled={savingProfile}>
                 <Text style={styles.btnCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnSave} onPress={saveProfile}>
-                <Text style={styles.btnSaveText}>Save Changes</Text>
+
+              <TouchableOpacity
+                style={[styles.btnSave, savingProfile && styles.btnDisabled]}
+                onPress={saveProfile}
+                disabled={savingProfile}
+              >
+                {savingProfile ? (
+                  <>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.btnSaveText}>Saving...</Text>
+                  </>
+                ) : (
+                  <Text style={styles.btnSaveText}>Save Changes</Text>
+                )}
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -569,24 +687,35 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </Modal>
 
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
-          <Text style={styles.headerSubtitle}>Account and Notifications</Text>
-        </View>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* same compact style as alerts/history */}
-
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#2e8b57']}
+            tintColor="#2e8b57"
+          />
+        }
+      >
         <View style={[styles.card, styles.profileCard]}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(name)}</Text>
-          </View>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.email}>{email}</Text>
+          {loadingProfile ? (
+            <ActivityIndicator size="small" color="#2e8b57" style={{ marginVertical: 20 }} />
+          ) : (
+            <>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials(name)}</Text>
+              </View>
+              <Text style={styles.name}>{name || 'Unknown User'}</Text>
+              <Text style={styles.email}>{email}</Text>
+              {!!contact && <Text style={styles.contact}>{contact}</Text>}
 
-          <TouchableOpacity style={styles.editBtn} onPress={openEdit}>
-            <Text style={styles.editBtnText}>Edit Profile</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.editBtn} onPress={openEdit}>
+                <Text style={styles.editBtnText}>Edit Profile</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -702,25 +831,29 @@ export default function ProfileScreen() {
             title="Push Notifications"
             subtitle="Alerts sent to your phone"
             value={pushNotifications}
-            onValueChange={setPushNotifications}
+            onToggle={(v) => saveToggle('push', () => setPushNotifications(v))}
+            saving={savingToggleKey === 'push'}
           />
           <SettingRow
             title="Salinity Alerts"
             subtitle="Warn when salinity is above threshold"
             value={salinityAlerts}
-            onValueChange={setSalinityAlerts}
+            onToggle={(v) => saveToggle('salinity', () => setSalinityAlerts(v))}
+            saving={savingToggleKey === 'salinity'}
           />
           <SettingRow
             title="Temperature Alerts"
             subtitle="Warn when temp is above threshold"
             value={temperatureAlerts}
-            onValueChange={setTemperatureAlerts}
+            onToggle={(v) => saveToggle('temp', () => setTemperatureAlerts(v))}
+            saving={savingToggleKey === 'temp'}
           />
           <SettingRow
             title="pH & Sunlight"
             subtitle="Warn when out of range"
             value={phSunlightAlerts}
-            onValueChange={setPhSunlightAlerts}
+            onToggle={(v) => saveToggle('phsun', () => setPhSunlightAlerts(v))}
+            saving={savingToggleKey === 'phsun'}
             isLast
           />
         </View>
@@ -809,22 +942,25 @@ function SettingRow({ title, subtitle, value, onToggle, saving, isLast }: Settin
 
   subtitle: string;
   value: boolean;
-  onValueChange: (v: boolean) => void;
+  onToggle: (value: boolean) => void;
+  saving?: boolean;
   isLast?: boolean;
 }
 
-function SettingRow({ title, subtitle, value, onValueChange, isLast }: SettingRowProps) {
+function SettingRow({ title, subtitle, value, onToggle, saving, isLast }: SettingRowProps) {
   return (
     <View style={[styles.settingRow, !isLast && styles.settingRowBorder]}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingRight: 10 }}>
         <Text style={styles.settingTitle}>{title}</Text>
         <Text style={styles.settingSubtitle}>{subtitle}</Text>
+        {saving && <Text style={styles.savingText}>Saving...</Text>}
       </View>
       <Switch
         value={value}
-        onValueChange={onValueChange}
+        onValueChange={onToggle}
         trackColor={{ false: '#ccc', true: '#2e8b57' }}
         thumbColor="#fff"
+        disabled={!!saving}
       />
     </View>
   );
@@ -853,6 +989,21 @@ headerTitle:{
 },
 
 
+
+  header:{
+  backgroundColor:'#2e8b57',
+  paddingTop:55,
+  paddingBottom:35,
+  paddingHorizontal:22,
+  borderBottomLeftRadius:35,
+  borderBottomRightRadius:35,
+},
+
+headerTitle:{
+  color:'#fff',
+  fontSize:26,
+  fontWeight:'900',
+
 headerSubtitle:{
   color:'#d8f0e1',
   fontSize:13,
@@ -865,10 +1016,14 @@ headerSubtitle:{
   paddingTop: 45,
   paddingBottom: 38,
   paddingHorizontal: 20,
-},
-headerTitle: { color: '#fff', fontSize: 26, fontWeight: '800' },
-headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
 
+},
+
+headerSubtitle:{
+  color:'#d8f0e1',
+  fontSize:13,
+  marginTop:8,
+},
 
   card: {
     backgroundColor: '#fff',
@@ -944,16 +1099,25 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
   },
   avatarText: { fontSize: 21, fontWeight: '800', color: '#2e8b57' },
   name: { fontSize: 17, fontWeight: '800', color: '#1a1a1a' },
-  email: { fontSize: 12, marginTop: 2, marginBottom: 14, color: '#2e8b57' },
+  email: { fontSize: 12, marginTop: 2, marginBottom: 4, color: '#2e8b57' },
+  contact: { fontSize: 11, color: '#666', marginBottom: 12 },
 
   editBtn: {
-    borderWidth: 1.2,
-    borderColor: '#e9e9e9',
-    borderRadius: 22,
-    paddingHorizontal: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2e8b57',
+    borderRadius: 20,
+    paddingHorizontal: 18,
     paddingVertical: 9,
+    marginTop: 12,
   },
-  editBtnText: { fontWeight: '700', fontSize: 13, color: '#1a1a1a' },
+
+  editBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
 
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a1a' },
@@ -996,13 +1160,17 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
 
   settingTitle: { fontSize: 13, fontWeight: '700', color: '#1a1a1a' },
   settingSubtitle: { fontSize: 11, marginTop: 2, color: '#777' },
+  savingText: { fontSize: 10, color: '#2e8b57', marginTop: 4, fontWeight: '600' },
 
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginVertical: 4,
   },
   actionIcon: {
     width: 34,
@@ -1030,6 +1198,7 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
     borderWidth: 1,
     borderColor: '#f6c7c7',
     borderRadius: 16,
+
     paddingVertical: 14,
 
   },
@@ -1051,7 +1220,6 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
   footerVersion: { fontSize: 11, marginTop: 3, color: '#777' },
   footerTagline: { fontSize: 11, marginTop: 2, color: '#777' },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.40)',
@@ -1198,22 +1366,41 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
   modalBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
   btnCancel: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    backgroundColor: '#f3f4f6',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f1f1',
+    paddingVertical: 10,
+    borderRadius: 14,
   },
-  btnCancelText: { color: '#555', fontWeight: '600', fontSize: 13 },
+
+  btnCancelText: {
+    color: '#555',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
   btnSave: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    backgroundColor: '#2e8b57',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2e8b57',
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 6,
   },
-  btnSaveText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Logout modal
+  btnSaveText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+  btnDisabled: {
+    opacity: 0.75,
+  },
+
   logoutModalBox: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -1307,14 +1494,20 @@ headerSubtitle: { color: '#e3f3ea', fontSize: 13, marginTop: 4 },
 
   btnLogoutConfirm: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    backgroundColor: '#d9534f',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d9534f',
+    paddingVertical: 10,
+    borderRadius: 14,
   },
-  btnLogoutConfirmText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Toast
+  btnLogoutConfirmText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
   toast: {
     position: 'absolute',
     left: '50%',
